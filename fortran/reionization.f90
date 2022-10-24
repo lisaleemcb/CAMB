@@ -35,10 +35,14 @@
         real(dl)   :: delta_redshift = 0.5_dl
         real(dl)   :: fraction = TTanhReionization_DefFraction
         !Parameters for the second reionization of Helium
-        logical    :: include_helium_fullreion  = .true.
-        real(dl)   :: helium_redshift  = 3.5_dl
-        real(dl)   :: helium_delta_redshift  = 0.4_dl
-        real(dl)   :: helium_redshiftstart  = 5.5_dl
+        logical    :: include_heliumII_fullreion  = .true.
+        logical    :: include_heliumI_fullreion  = .true.
+        real(dl)   :: heliumI_redshift  = 5.5_dl
+        real(dl)   :: heliumII_redshift  = 3.5_dl
+        real(dl)   :: heliumI_delta_redshift  = 0.4_dl
+        real(dl)   :: heliumII_delta_redshift  = 0.7_dl
+        real(dl)   :: heliumI_redshiftstart  = 5.5_dl
+        real(dl)   :: heliumII_redshiftstart  = 5.5_dl
         real(dl)   :: tau_solve_accuracy_boost = 1._dl
         real(dl)   :: timestep_boost =  1._dl
         real(dl)   :: max_redshift = 50._dl
@@ -81,10 +85,26 @@
     end if
     TTanhReionization_xe =(this%fraction-xstart)*(tgh+1._dl)/2._dl+xstart
 
-    if (this%include_helium_fullreion .and. z < this%helium_redshiftstart) then
+    if (this%include_heliumI_fullreion .and. z < this%heliumI_redshiftstart) then
 
+        !PRINT *, 'Testing testing can you hear me I.'
         !Effect of Helium becoming fully ionized is small so details not important
-        xod = (this%helium_redshift - z)/this%helium_delta_redshift
+        xod = (this%heliumI_redshift - z)/this%heliumI_delta_redshift
+        if (xod > 100) then
+            tgh=1.d0
+        else
+            tgh=tanh(xod)
+        end if
+
+        TTanhReionization_xe =  TTanhReionization_xe + this%fHe*(tgh+1._dl)/2._dl
+
+    end if
+
+    if (this%include_heliumII_fullreion .and. z < this%heliumII_redshiftstart) then
+
+        !PRINT *, 'Testing testing can you hear me II.'
+        !Effect of Helium becoming fully ionized is small so details not important
+        xod = (this%heliumII_redshift - z)/this%heliumII_delta_redshift
         if (xod > 100) then
             tgh=1.d0
         else
@@ -129,11 +149,15 @@
 
         call Ini%Read('re_delta_redshift',this%delta_redshift)
         call Ini%Read('re_ionization_frac',this%fraction)
-        call Ini%Read('re_helium_redshift',this%helium_redshift)
-        call Ini%Read('re_helium_delta_redshift',this%helium_delta_redshift)
+        call Ini%Read('re_heliumI_redshift',this%heliumI_redshift)
+        call Ini%Read('re_heliumII_redshift',this%heliumII_redshift)
+        call Ini%Read('re_heliumI_delta_redshift',this%heliumI_delta_redshift)
+        call Ini%Read('re_heliumII_delta_redshift',this%heliumII_delta_redshift)
 
-        this%helium_redshiftstart  = Ini%Read_Double('re_helium_redshiftstart', &
-            this%helium_redshift + 5*this%helium_delta_redshift)
+        this%heliumII_redshiftstart  = Ini%Read_Double('re_heliumII_redshiftstart', &
+            this%heliumII_redshift + 5*this%heliumII_delta_redshift)
+        this%heliumI_redshiftstart  = Ini%Read_Double('re_heliumI_redshiftstart', &
+            this%heliumI_redshift + 5*this%heliumI_delta_redshift)
 
     end if
 
@@ -199,13 +223,13 @@
     if (this%Reionization) then
         if (this%use_optical_depth) then
             if (this%optical_depth<0 .or. this%optical_depth > 0.9  .or. &
-                this%include_helium_fullreion .and. this%optical_depth<0.01) then
+                this%include_heliumII_fullreion .and. this%optical_depth<0.01) then
                 OK = .false.
                 write(*,*) 'Optical depth is strange. You have:', this%optical_depth
             end if
         else
             if (this%redshift < 0 .or. this%Redshift +this%delta_redshift*3 > this%max_redshift .or. &
-                this%include_helium_fullreion .and. this%redshift < this%helium_redshift) then
+                this%include_heliumII_fullreion .and. this%redshift < this%heliumII_redshift) then
                 OK = .false.
                 write(*,*) 'Reionization redshift strange. You have: ',this%Redshift
             end if
