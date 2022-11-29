@@ -35,13 +35,13 @@
         real(dl)   :: delta_redshift = 0.5_dl
         real(dl)   :: fraction = TTanhReionization_DefFraction
         !Parameters for the second reionization of Helium
-        logical    :: include_heliumII_fullreion  = .true.
         logical    :: include_heliumI_fullreion  = .true.
-        real(dl)   :: heliumI_redshift  = 5.5_dl
+        logical    :: include_heliumII_fullreion  = .true.
+        real(dl)   :: heliumI_redshift  = 10._dl
         real(dl)   :: heliumII_redshift  = 3.5_dl
-        real(dl)   :: heliumI_delta_redshift  = 0.4_dl
+        real(dl)   :: heliumI_delta_redshift  = 0.5_dl
         real(dl)   :: heliumII_delta_redshift  = 0.7_dl
-        real(dl)   :: heliumI_redshiftstart  = 5.5_dl
+        real(dl)   :: heliumI_redshiftstart  = 10.0_dl
         real(dl)   :: heliumII_redshiftstart  = 5.5_dl
         real(dl)   :: tau_solve_accuracy_boost = 1._dl
         real(dl)   :: timestep_boost =  1._dl
@@ -62,7 +62,6 @@
 
     public TTanhReionization
     contains
-
 
     function TTanhReionization_xe(this, z, tau, xe_recomb)
     !a and time tau and redundant, both provided for convenience
@@ -88,30 +87,34 @@
     if (this%include_heliumI_fullreion .and. z < this%heliumI_redshiftstart) then
 
         !PRINT *, 'Testing testing can you hear me I.'
+        !PRINT *, 'helium I is ', this%include_heliumI_fullreion
+        !PRINT *, 'Redshift of helium I is ', this%heliumI_redshift
         !Effect of Helium becoming fully ionized is small so details not important
-        xod = (this%heliumI_redshift - z)/this%heliumI_delta_redshift
+        xod = (this%WindowVarMid_heliumI - (1+z)**Tanh_zexp)/this%WindowVarDelta_heliumI
         if (xod > 100) then
             tgh=1.d0
         else
             tgh=tanh(xod)
         end if
 
-        TTanhReionization_xe =  TTanhReionization_xe + this%fHe*(tgh+1._dl)/2._dl
+        TTanhReionization_xe =  TTanhReionization_xe + .5_dl * this%fHe*(tgh+1._dl)/2._dl
 
     end if
 
     if (this%include_heliumII_fullreion .and. z < this%heliumII_redshiftstart) then
 
         !PRINT *, 'Testing testing can you hear me II.'
+        !PRINT *, 'helium II is ', this%include_heliumII_fullreion
+        !PRINT *, 'Redshift of helium II is ', this%heliumII_redshift
         !Effect of Helium becoming fully ionized is small so details not important
-        xod = (this%heliumII_redshift - z)/this%heliumII_delta_redshift
+        xod = (this%WindowVarMid_heliumII - (1+z)**Tanh_zexp)/this%WindowVarDelta_heliumII
         if (xod > 100) then
             tgh=1.d0
         else
             tgh=tanh(xod)
         end if
 
-        TTanhReionization_xe =  TTanhReionization_xe + this%fHe*(tgh+1._dl)/2._dl
+        TTanhReionization_xe =  TTanhReionization_xe + .5_dl * this%fHe*(tgh+1._dl)/2._dl
 
     end if
 
@@ -167,7 +170,12 @@
     class(TTanhReionization) :: this
 
     this%WindowVarMid = (1._dl+this%redshift)**Tanh_zexp
+    this%WindowVarMid_heliumI = (1._dl+this%heliumI_redshift)**Tanh_zexp
+    this%WindowVarMid_heliumII = (1._dl+this%heliumII_redshift)**Tanh_zexp
+
     this%WindowVarDelta = Tanh_zexp*(1._dl+this%redshift)**(Tanh_zexp-1._dl)*this%delta_redshift
+    this%WindowVarDelta_heliumI = Tanh_zexp*(1._dl+this%heliumI_redshift)**(Tanh_zexp-1._dl)*this%heliumI_delta_redshift
+    this%WindowVarDelta_heliumII = Tanh_zexp*(1._dl+this%heliumII_redshift)**(Tanh_zexp-1._dl)*this%heliumII_delta_redshift
 
     end subroutine TTanhReionization_SetParamsForZre
 
