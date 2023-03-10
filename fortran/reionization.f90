@@ -55,7 +55,7 @@
         real(dl), private ::  fHe
         real(dl), private :: alpha = 0_dl
         !The rest are internal to this module.
-        real(dl), private ::  fHe, WindowVarMid, WindowVarMid_heliumI, WindowVarMid_heliumII, WindowVarDelta, WindowVarDelta_heliumI, WindowVarDelta_heliumII
+        real(dl), private ::  WindowVarMid, WindowVarMid_heliumI, WindowVarMid_heliumII, WindowVarDelta, WindowVarDelta_heliumI, WindowVarDelta_heliumII
         class(CAMBdata), pointer :: State
     contains
     procedure :: ReadParams => TTanhReionization_ReadParams
@@ -227,9 +227,9 @@
     class(TTanhReionization) :: this
 
     if (this%alpha < 1.) then
-        this%redshift = this%z_early
+        this%zre_H = this%z_early
     else
-        this%redshift = this%z_early - (this%z_early - this%z_end)/2.**(1./this%alpha)
+        this%zre_H = this%z_early - (this%z_early - this%z_end)/2.**(1./this%alpha)
     end if
 
     end subroutine TTanhReionization_SetParamsForAlpha
@@ -237,9 +237,9 @@
     subroutine TTanhReionization_SetAlphaForZre(this)
     class(TTanhReionization) :: this
 
-    this%alpha = log(1./2.) / log((this%z_early-this%redshift)/(this%z_early- this%z_end))
+    this%alpha = log(1./2.) / log((this%z_early-this%zre_H)/(this%z_early- this%z_end))
     if (this%alpha <= 1) then
-        write (*,*) 'WARNING: there is an issue with your zre value:', this%redshift
+        write (*,*) 'WARNING: there is an issue with your zre value:', this%zre_H
         this%alpha = 1.
     end if
 
@@ -265,7 +265,7 @@
                   write (*,*) 'WARNING: You seem to have set the optical depth, but use_optical_depth = F'
 
               if (this%use_optical_depth.and.this%optical_depth<0.001 &
-                  .or. .not.this%use_optical_depth .and. this%Redshift<0.001) then
+                  .or. .not.this%use_optical_depth .and. this%zre_H<0.001) then
                   this%Reionization = .false.
               end if
 
@@ -275,18 +275,18 @@
 
 
               if (this%use_optical_depth) then
-                  this%redshift = 0._dl
+                  this%zre_H = 0._dl
                   this%alpha = 0._dl
                   this%z_end = 5.5_dl
                   call this%zreFromOptDepth()
                   call this%SetAlphaForZre()
                   if (global_error_flag/=0) return
                   if (FeedbackLevel > 1) then
-                      write(*,'("Reion redshift       =  ",f6.3)') this%redshift
+                      write(*,'("Reion redshift       =  ",f6.3)') this%zre_H
                       write(*,'("Reion endpoint       =  ",f6.3)') this%z_end
                   end if
               else
-                  if (this%redshift < 0.0001_dl) write (*,*) 'WARNING: You seem to have set use_optical_depth = F but redshift = 0'
+                  if (this%zre_H < 0.0001_dl) write (*,*) 'WARNING: You seem to have set use_optical_depth = F but redshift = 0'
                   if (this%z_end < 0.0001_dl) then
                       write (*,*) 'WARNING: z_end not set. Automatically setting it to 5.5'
                       this%z_end = 5.5_dl
@@ -345,10 +345,10 @@
                write(*,*) 'Optical depth is strange. You have:', this%optical_depth
             end if
          else
-           if (this%redshift < this%z_end .or. this%redshift > this%z_early .or. &
-               this%include_HeII .and. this%redshift < this%zre_HeII) then
+           if (this%zre_H < this%z_end .or. this%zre_H > this%z_early .or. &
+               this%include_HeII .and. this%zre_H < this%zre_HeII) then
                OK = .false.
-               write(*,*) 'Reionization redshift strange. You have: ',this%redshift
+               write(*,*) 'Reionization redshift strange. You have: ',this%zre_H
            end if
          end if
        if (this%fraction/= TTanhReionization_DefFraction .and. (this%fraction < 0 .or. this%fraction > 1.5)) then
@@ -394,6 +394,7 @@
     class(TTanhReionization) :: this
     real(dl) try_b, try_t
     real(dl) tau, last_top, last_bot
+    real(dl) a, b, step, criterium
     integer i
 
     if (this%asym_reion) then
@@ -431,7 +432,7 @@
               this%alpha= this%alpha - step
           end if
 
-          ! if (i>95) write(*,*) i, criterium, step, tau, this%optical_depth, this%alpha, this%redshift
+          ! if (i>95) write(*,*) i, criterium, step, tau, this%optical_depth, this%alpha, this%zre_H
 
           i=i+1
 
