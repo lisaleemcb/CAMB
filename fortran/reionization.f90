@@ -111,6 +111,7 @@
           end if
     else
       xod = (this%WindowVarMid - (1+z)**Tanh_zexp)/this%WindowVarDelta
+      PRINT *, 'WindowVarMid is ', this%WindowVarMid
       if (xod > 100) then
           tgh=1.d0
       else
@@ -125,6 +126,7 @@
       if (this%include_HeI .and. z < this%zre_HeI_start) then
 
           !PRINT *, 'Testing testing can you hear me I.'
+          !PRINT *, 'hydrogen ', this%zre_H
           !PRINT *, 'helium I is ', this%include_HeI
           !PRINT *, 'Redshift of helium I is ', this%zre_HeI
           !Effect of Helium becoming fully ionized is small so details not important
@@ -185,13 +187,14 @@
 
     this%Reionization = Ini%Read_Logical('reionization')
     if (this%Reionization) then
-
+        PRINT *, 'TTanhReionization_ReadParams'
         this%use_optical_depth = Ini%Read_Logical('re_use_optical_depth')
 
         if (this%use_optical_depth) then
             this%optical_depth = Ini%Read_Double('re_optical_depth')
         else
             this%zre_H = Ini%Read_Double('re_zre_H')
+            PRINT *, 'Redshift of hydrogen is ', this%zre_H
         end if
 
         call Ini%Read('re_dz_H',this%dz_H)

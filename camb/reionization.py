@@ -34,7 +34,10 @@ class TanhReionization(ReionizationModel):
         ("tau_solve_accuracy_boost", c_double, "Accuracy boosting parameter for solving for z_re from tau"),
         ("timestep_boost", c_double,
          "Accuracy boosting parameter for the minimum number of time sampling steps through reionization"),
-        ("max_redshift", c_double, "Maxmimum redshift allowed when mapping tau into reionization redshift")]
+        ("z_end", c_double, "End redshift of reionization for aysm model"),
+        ("z_early", c_double, "Early redshift of reionization for aysm model"),
+        ("max_redshift", c_double, "Maxmimum redshift allowed when mapping tau into reionization redshift"),
+        ("asym_reion", c_bool, "Whether to use asym model")]
 
     _fortran_class_module_ = 'Reionization'
     _fortran_class_name_ = 'TTanhReionization'
