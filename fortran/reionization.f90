@@ -41,12 +41,13 @@
         real(dl)   :: zre_HeI  = 10._dl
         real(dl)   :: zre_HeII  = 3.5_dl
         real(dl)   :: dz_HeI  = 0.5_dl
-        real(dl)   :: dz_HeII  = 0.7_dl
+        real(dl)   :: dz_HeII  = 0.5_dl
         real(dl)   :: zre_HeI_start  = 10.0_dl
         real(dl)   :: zre_HeII_start  = 10.0_dl !5.5_dl
         real(dl)   :: tau_solve_accuracy_boost = 1._dl
         real(dl)   :: timestep_boost =  1.
-        real(dl)   :: z_end = 0._dl
+        real(dl)   :: zend_H = 0._dl
+        real(dl)   :: zend_HeI = 0._dl
         real(dl)   :: z_early = 20._dl
         !The rest are internal to this module.
         real(dl)   :: max_redshift = 50._dl
@@ -87,13 +88,28 @@
     xstart = PresentDefault( 0._dl, xe_recomb)
 
     if (this%asym_reion) then
-      if (z < this%z_end) then
+      if (z < this%zend_H) then
               TTanhReionization_xe = this%fraction-xstart
           else if (z > this%z_early) then
               TTanhReionization_xe = xstart
           else
-              TTanhReionization_xe = ((this%z_early-z)/(this%z_early - this%z_end ))**(this%alpha)
+              TTanhReionization_xe = ((this%z_early-z)/(this%z_early - this%zend_H ))**(this%alpha)
               TTanhReionization_xe = (this%fraction-xstart)*TTanhReionization_xe
+          end if
+
+          if (this%include_HeI .and. z < this%zre_HeI_start) then
+
+            if (z < this%zend_HeI) then
+                    TTanhReionization_xe = this%fraction-xstart
+                else if (z > this%z_early) then
+                    TTanhReionization_xe = xstart
+                else
+                    TTanhReionization_xe = ((this%z_early-z)/(this%z_early - this%zend_HeI ))**(this%alpha)
+                    TTanhReionization_xe = (this%fraction-xstart)*TTanhReionization_xe
+                end if
+
+              TTanhReionization_xe =  TTanhReionization_xe + (this%fHe / 2) * (tgh+1._dl)/2._dl
+
           end if
 
           if (this%include_HeII .and. z < this%zre_HeII_start) then
@@ -106,7 +122,7 @@
                   tgh=tanh(xod)
               end if
 
-              TTanhReionization_xe =  TTanhReionization_xe + this%fHe*(tgh+1._dl)/2._dl
+              TTanhReionization_xe =  TTanhReionization_xe + (this%fHe / 2) * (tgh+1._dl)/2._dl
 
           end if
     else
@@ -142,7 +158,7 @@
           !PRINT *, tgh
           !PRINT *, TTanhReionization_xe
           !PRINT *, z
-          TTanhReionization_xe =  TTanhReionization_xe + this%fHe*(tgh+1._dl)/2._dl
+          TTanhReionization_xe =  TTanhReionization_xe + (this%fHe / 2) * (tgh+1._dl)/2._dl
 
       end if
 
@@ -152,14 +168,14 @@
           !PRINT *, 'helium II is ', this%include_HeII
           !PRINT *, 'Redshift of helium II is ', this%zre_HeII
           !Effect of Helium becoming fully ionized is small so details not important
-          xod = (this%WindowVarMid_heliumII - (1+z)**Tanh_zexp)/this%WindowVarDelta_heliumII
+          xod = (this%WindowVarMid_heliumII - (1+z)**Tanh_zexp) / this%WindowVarDelta_heliumII
           if (xod > 100) then
               tgh=1.d0
           else
               tgh=tanh(xod)
           end if
           !PRINT *, 'fHeII is ', .5_dl * this%fHe*(tgh+1._dl)/2._dl
-          TTanhReionization_xe =  TTanhReionization_xe + this%fHe*(tgh+1._dl)/2._dl
+          TTanhReionization_xe =  TTanhReionization_xe + (this%fHe / 2) * (tgh+1._dl)/2._dl
 
       end if
 
@@ -230,15 +246,14 @@
     if (this%alpha < 1.) then
         this%zre_H = this%z_early
     else
-        this%zre_H = this%z_early - (this%z_early - this%z_end)/2.**(1./this%alpha)
+        this%zre_H = this%z_early - (this%z_early - this%zend_H)/2.**(1./this%alpha)
     end if
 
     end subroutine TTanhReionization_SetParamsForAlpha
 
     subroutine TTanhReionization_SetAlphaForZre(this)
     class(TTanhReionization) :: this
-
-    this%alpha = log(1./2.) / log((this%z_early-this%zre_H)/(this%z_early- this%z_end))
+    this%alpha = log(1./2.) / log((this%z_early-this%zre_H)/(this%z_early- this%zend_H))
     if (this%alpha <= 1) then
         write (*,*) 'WARNING: there is an issue with your zre value:', this%zre_H
         this%alpha = 1.
@@ -278,19 +293,19 @@
               if (this%use_optical_depth) then
                   this%zre_H = 0._dl
                   this%alpha = 0._dl
-                  this%z_end = 5.5_dl
+                  this%zend_H = 5.5_dl
                   call this%zreFromOptDepth()
                   call this%SetAlphaForZre()
                   if (global_error_flag/=0) return
                   if (FeedbackLevel > 1) then
                       write(*,'("Reion redshift       =  ",f6.3)') this%zre_H
-                      write(*,'("Reion endpoint       =  ",f6.3)') this%z_end
+                      write(*,'("Reion endpoint       =  ",f6.3)') this%zend_H
                   end if
               else
                   if (this%zre_H < 0.0001_dl) write (*,*) 'WARNING: You seem to have set use_optical_depth = F but redshift = 0'
-                  if (this%z_end < 0.0001_dl) then
-                      write (*,*) 'WARNING: z_end not set. Automatically setting it to 5.5'
-                      this%z_end = 5.5_dl
+                  if (this%zend_H < 0.0001_dl) then
+                      write (*,*) 'WARNING: zend_H not set. Automatically setting it to 5.5'
+                      this%zend_H = 5.5_dl
                   end if
                   call this%SetAlphaForZre()
                   this%optical_depth = this%State%GetReionizationOptDepth()
@@ -346,7 +361,7 @@
                write(*,*) 'Optical depth is strange. You have:', this%optical_depth
             end if
          else
-           if (this%zre_H < this%z_end .or. this%zre_H > this%z_early .or. &
+           if (this%zre_H < this%zend_H .or. this%zre_H > this%z_early .or. &
                this%include_HeII .and. this%zre_H < this%zre_HeII) then
                OK = .false.
                write(*,*) 'Reionization redshift strange. You have: ',this%zre_H
