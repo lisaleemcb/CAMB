@@ -82,7 +82,7 @@
     real(dl), intent(in) :: z
     real(dl), intent(in), optional :: tau, xe_recomb
     real(dl) TTanhReionization_xe
-    real(dl) tgh, xod
+    real(dl) tgh, xod, xe_HeI
     real(dl) xstart
 
     xstart = PresentDefault( 0._dl, xe_recomb)
@@ -94,26 +94,21 @@
               TTanhReionization_xe = xstart
           else
               TTanhReionization_xe = ((this%z_early-z)/(this%z_early - this%zend_H ))**(this%alpha)
-              TTanhReionization_xe = (this%fraction-xstart)*TTanhReionization_xe
+              TTanhReionization_xe = (this%fraction-xstart) * TTanhReionization_xe
           end if
 
           if (this%include_HeI .and. z < this%zre_HeI_start) then
-
             if (z < this%zend_HeI) then
-                    TTanhReionization_xe = this%fraction-xstart
+                    xe_HeI = 1.0
                 else if (z > this%z_early) then
-                    TTanhReionization_xe = xstart
+                    xe_HeI = 0.0
                 else
-                    TTanhReionization_xe = ((this%z_early-z)/(this%z_early - this%zend_HeI ))**(this%alpha)
-                    TTanhReionization_xe = (this%fraction-xstart)*TTanhReionization_xe
+                    xe_HeI = ((this%z_early-z)/(this%z_early - this%zend_HeI ))**(this%alpha)
                 end if
-
-              TTanhReionization_xe =  TTanhReionization_xe + (this%fHe / 2) * (tgh+1._dl)/2._dl
-
+            TTanhReionization_xe =  TTanhReionization_xe + this%fHe * xe_HeI
           end if
 
           if (this%include_HeII .and. z < this%zre_HeII_start) then
-
               !Effect of Helium becoming fully ionized is small so details not important
               xod = (this%zre_HeII - z)/this%dz_HeII
               if (xod > 100) then
@@ -121,52 +116,30 @@
               else
                   tgh=tanh(xod)
               end if
-
-              TTanhReionization_xe =  TTanhReionization_xe + (this%fHe / 2) * (tgh+1._dl)/2._dl
-
+              TTanhReionization_xe =  TTanhReionization_xe + this%fHe * (tgh+1._dl)/2._dl
           end if
     else
       xod = (this%WindowVarMid - (1+z)**Tanh_zexp)/this%WindowVarDelta
-      !PRINT *, 'WindowVarMid is ', this%WindowVarMid
       if (xod > 100) then
           tgh=1.d0
       else
           tgh=tanh(xod)
-          !PRINT *, tgh
       end if
       TTanhReionization_xe =(this%fraction-xstart)*(tgh+1._dl)/2._dl+xstart
-        !PRINT *, 'xe H is: ', this%fraction
-        !PRINT *, 'xstart: ', xstart
-        !PRINT *, z
 
       if (this%include_HeI .and. z < this%zre_HeI_start) then
-
-          !PRINT *, 'Testing testing can you hear me I.'
-          !PRINT *, 'hydrogen ', this%zre_H
-          !PRINT *, 'helium I is ', this%include_HeI
-          !PRINT *, 'Redshift of helium I is ', this%zre_HeI
           !Effect of Helium becoming fully ionized is small so details not important
           xod = (this%WindowVarMid_heliumI - (1+z)**Tanh_zexp)/this%WindowVarDelta_heliumI
-          !PRINT *, xod
           if (xod > 100) then
               tgh=1.d0
           else
               tgh=tanh(xod)
           end if
-
           !open (unit = 1, file = "name")
-          !PRINT *, tgh
-          !PRINT *, TTanhReionization_xe
-          !PRINT *, z
-          TTanhReionization_xe =  TTanhReionization_xe + (this%fHe / 2) * (tgh+1._dl)/2._dl
-
+          TTanhReionization_xe =  TTanhReionization_xe + this%fHe * (tgh+1._dl)/2._dl
       end if
 
       if (this%include_HeII .and. z < this%zre_HeII_start) then
-
-          !PRINT *, 'Testing testing can you hear me II.'
-          !PRINT *, 'helium II is ', this%include_HeII
-          !PRINT *, 'Redshift of helium II is ', this%zre_HeII
           !Effect of Helium becoming fully ionized is small so details not important
           xod = (this%WindowVarMid_heliumII - (1+z)**Tanh_zexp) / this%WindowVarDelta_heliumII
           if (xod > 100) then
@@ -174,8 +147,7 @@
           else
               tgh=tanh(xod)
           end if
-          !PRINT *, 'fHeII is ', .5_dl * this%fHe*(tgh+1._dl)/2._dl
-          TTanhReionization_xe =  TTanhReionization_xe + (this%fHe / 2) * (tgh+1._dl)/2._dl
+          TTanhReionization_xe =  TTanhReionization_xe + this%fHe * (tgh+1._dl)/2._dl
 
       end if
 
@@ -253,7 +225,7 @@
 
     subroutine TTanhReionization_SetAlphaForZre(this)
     class(TTanhReionization) :: this
-    this%alpha = log(1./2.) / log((this%z_early-this%zre_H)/(this%z_early- this%zend_H))
+    this%alpha = log(1./ (2. * (1.0 + this%fHe))) / log((this%z_early-this%zre_H)/(this%z_early- this%zend_H))
     if (this%alpha <= 1) then
         write (*,*) 'WARNING: there is an issue with your zre value:', this%zre_H
         this%alpha = 1.
@@ -274,21 +246,17 @@
         this%fHe =  State%CP%YHe/(mass_ratio_He_H*(1.d0-State%CP%YHe))
 
         if (this%asym_reion) then
-
           if (this%Reionization) then
-
               if (this%optical_depth /= 0._dl .and. .not. this%use_optical_depth) &
                   write (*,*) 'WARNING: You seem to have set the optical depth, but use_optical_depth = F'
-
               if (this%use_optical_depth.and.this%optical_depth<0.001 &
                   .or. .not.this%use_optical_depth .and. this%zre_H<0.001) then
                   this%Reionization = .false.
               end if
 
               if (this%fraction==TTanhReionization_DefFraction) then
-                  this%fraction = 1._dl  !H + singly ionized He
+                  this%fraction = 1._dl   !H + singly ionized He
               end if
-
 
               if (this%use_optical_depth) then
                   this%zre_H = 0._dl
